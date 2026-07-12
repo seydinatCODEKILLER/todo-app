@@ -5,9 +5,6 @@ dotenv.config();
 
 const { Pool } = pkg;
 
-// Toutes les valeurs viennent des variables d'environnement.
-// Rien n'est en dur : en local on lit .env, en prod ce sera injecté
-// par Ansible / GitHub Secrets (cf. TP DevOps section 3.3).
 const pool = new Pool({
   host: process.env.PGHOST || "localhost",
   port: Number(process.env.PGPORT) || 5432,
