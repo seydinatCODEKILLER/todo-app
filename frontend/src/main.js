@@ -12,7 +12,7 @@ function render() {
   app.innerHTML = `
     <div class="page">
       <header class="header">
-        <span class="eyebrow">MEDISHOP / OPS</span>
+        <span class="eyebrow">MEDISHOP / OPS v2</span>
         <h1>Tâches</h1>
         <p class="subtitle">${todos.length} élément${
     todos.length !== 1 ? "s" : ""
