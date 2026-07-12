@@ -1,0 +1,145 @@
+name: CI/CD - Build & Deploy
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  # --- Détecte quel dossier a changé, pour ne builder que ce qui est nécessaire ---
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      frontend: ${{ steps.filter.outputs.frontend }}
+      backend: ${{ steps.filter.outputs.backend }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            frontend:
+              - 'frontend/**'
+            backend:
+              - 'backend/**'
+
+  # --- Build + push de l'image frontend, seulement si frontend/ a changé ---
+  build-frontend:
+    needs: changes
+    if: needs.changes.outputs.frontend == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: ./frontend
+          push: true
+          # URL vide = appels API relatifs (/api/...), proxifiés par Nginx
+          # vers le Back. Le navigateur ne parle jamais directement au Back.
+          build-args: |
+            VITE_API_URL=
+          tags: |
+            ${{ secrets.DOCKERHUB_USERNAME }}/medishop-todo-frontend:latest
+            ${{ secrets.DOCKERHUB_USERNAME }}/medishop-todo-frontend:${{ github.sha }}
+
+  # --- Build + push de l'image backend, seulement si backend/ a changé ---
+  build-backend:
+    needs: changes
+    if: needs.changes.outputs.backend == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: ./backend
+          push: true
+          tags: |
+            ${{ secrets.DOCKERHUB_USERNAME }}/medishop-todo-backend:latest
+            ${{ secrets.DOCKERHUB_USERNAME }}/medishop-todo-backend:${{ github.sha }}
+
+  # --- Déploiement du frontend sur l'instance Front (accès SSH direct) ---
+  deploy-frontend:
+    needs: [changes, build-frontend]
+    if: needs.changes.outputs.frontend == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configurer la cle SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H "${{ secrets.FRONT_HOST }}" >> ~/.ssh/known_hosts
+
+      - name: Copier le script de deploiement
+        run: |
+          scp -i ~/.ssh/deploy_key scripts/remote_deploy.sh \
+            ubuntu@${{ secrets.FRONT_HOST }}:/tmp/remote_deploy.sh
+
+      - name: Deployer le conteneur frontend
+        run: |
+          ssh -i ~/.ssh/deploy_key ubuntu@${{ secrets.FRONT_HOST }} '
+            chmod +x /tmp/remote_deploy.sh
+            /tmp/remote_deploy.sh todo-frontend \
+              ${{ secrets.DOCKERHUB_USERNAME }}/medishop-todo-frontend:latest \
+              8080 80
+          '
+
+  # --- Déploiement du backend sur l'instance Back (via rebond SSH sur le Front) ---
+  deploy-backend:
+    needs: [changes, build-backend]
+    if: needs.changes.outputs.backend == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configurer la cle SSH et le rebond via le Front
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H "${{ secrets.FRONT_HOST }}" >> ~/.ssh/known_hosts
+
+          cat >> ~/.ssh/config <<EOF
+          Host front-bastion
+            HostName ${{ secrets.FRONT_HOST }}
+            User ubuntu
+            IdentityFile ~/.ssh/deploy_key
+            StrictHostKeyChecking no
+
+          Host back-target
+            HostName ${{ secrets.BACK_HOST }}
+            User ubuntu
+            IdentityFile ~/.ssh/deploy_key
+            ProxyJump front-bastion
+            StrictHostKeyChecking no
+          EOF
+          chmod 600 ~/.ssh/config
+
+      - name: Copier le script de deploiement (via le Front)
+        run: |
+          scp scripts/remote_deploy.sh back-target:/tmp/remote_deploy.sh
+
+      - name: Deployer le conteneur backend
+        run: |
+          ssh back-target '
+            chmod +x /tmp/remote_deploy.sh
+            /tmp/remote_deploy.sh todo-backend \
+              ${{ secrets.DOCKERHUB_USERNAME }}/medishop-todo-backend:latest \
+              3000 3000 \
+              -e PORT=3000 \
+              -e PGHOST=${{ secrets.DB_HOST }} \
+              -e PGPORT=5432 \
+              -e PGUSER=${{ secrets.PG_USER }} \
+              -e PGPASSWORD=${{ secrets.PG_PASSWORD }} \
+              -e PGDATABASE=${{ secrets.PG_DATABASE }} \
+              -e CORS_ORIGIN=http://${{ secrets.FRONT_HOST }}
+          '
