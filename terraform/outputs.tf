@@ -17,3 +17,8 @@ output "ssh_command_front" {
   description = "Commande pour se connecter en SSH au Front"
   value       = "ssh -i ~/.ssh/medishop-todo ubuntu@${aws_instance.front.public_ip}"
 }
+
+output "front_security_group_id" {
+  description = "ID du Security Group du Front (utilisé par le pipeline CI/CD pour s'auto-whitelister temporairement en SSH)"
+  value       = aws_security_group.front.id
+}
