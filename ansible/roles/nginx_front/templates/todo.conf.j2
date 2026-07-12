@@ -1,0 +1,23 @@
+server {
+    listen 80;
+    listen [::]:80;
+    server_name {{ domain_name }};
+
+    # Proxy vers l'API (conteneur backend sur l'instance Back, IP privee)
+    location /api/ {
+        proxy_pass http://{{ hostvars['back']['ansible_host'] }}:{{ backend_port }}/api/;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    # Proxy vers le conteneur front (build Vite servi par nginx interne au conteneur)
+    location / {
+        proxy_pass http://127.0.0.1:{{ frontend_container_port }};
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}

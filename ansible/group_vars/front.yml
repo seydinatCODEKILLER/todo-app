@@ -1,0 +1,5 @@
+---
+# "_" = catch-all Nginx, fonctionne directement avec l'IP publique du Front.
+# Remplacez par votre vrai nom de domaine une fois qu'il pointe vers cette IP,
+# puis relancez le playbook (idempotent) : seule cette ligne changera.
+domain_name: "_"
