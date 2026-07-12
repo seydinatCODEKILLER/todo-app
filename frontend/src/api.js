@@ -1,6 +1,7 @@
-// L'URL du backend n'est jamais en dur : elle vient d'une variable
-// d'environnement Vite, injectée au build (cf. TP DevOps section 3.3).
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
+const API_URL =
+  import.meta.env.VITE_API_URL !== undefined
+    ? import.meta.env.VITE_API_URL
+    : "http://localhost:3000";
 
 async function handleResponse(res) {
   if (!res.ok) {
