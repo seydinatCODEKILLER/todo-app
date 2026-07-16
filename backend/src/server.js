@@ -23,7 +23,7 @@ app.get("/health", (req, res) => res.json({ status: "ok" }));
 app.use("/api/todos", todosRouter);
 
 app.use((req, res) => {
-  res.status(404).json({ error: "Route non trouvée" });
+  res.status(404).json({ error: "Route non trouvées" });
 });
 
 app.use((err, req, res, next) => {
