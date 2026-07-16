@@ -37,15 +37,12 @@ jobs:
         with:
           context: ./frontend
           push: true
-          # URL vide = appels API relatifs (/api/...), proxifiés par Nginx
-          # vers le Back. Le navigateur ne parle jamais directement au Back.
           build-args: |
             VITE_API_URL=
           tags: |
             ${{ secrets.DOCKERHUB_USERNAME }}/medishop-todo-frontend:latest
             ${{ secrets.DOCKERHUB_USERNAME }}/medishop-todo-frontend:${{ github.sha }}
 
-  # --- Build + push de l'image backend, seulement si backend/ a changé ---
   build-backend:
     needs: changes
     if: needs.changes.outputs.backend == 'true'
