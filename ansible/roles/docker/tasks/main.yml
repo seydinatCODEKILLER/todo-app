@@ -1,7 +1,7 @@
 ---
 # Installation de Docker CE via le dépôt officiel (méthode recommandée,
 # apt_key étant dépréciée sur Ubuntu 22.04). Toutes les tâches sont
-# idempotentes : rejouer ce rôle ne casse rien (cf. TP DevOps 3.2).
+# idempotentes : rejouer ce rôle ne casse rien.
 
 - name: Mettre à jour le cache apt
   apt:
